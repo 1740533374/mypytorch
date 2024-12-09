@@ -41,6 +41,7 @@ std::unordered_map<int, PytorchDragon::MemoryAllocator*> ma_alloc_map; // 哪个
 // std::unordered_map<int, std::string> gpu_path; // 每个gpu绑定的文件路径
 std::string malloc_choose; // 选择的分配器
 std::vector<std::string> file_paths; // 文件路径, 每个gpu对应一个文件路径
+int ssd_num = 1; // ssd的数量, 来决定在使用esg的时候文件创建的路径
 
 namespace c10 {
 
@@ -74,6 +75,13 @@ static void get_config() {
   assert(key == "malloc_choose");
   malloc_choose = value;
   std::cout << "malloc_choose: " << malloc_choose << std::endl;
+
+  // 读取ssd_num
+  std::getline(configFile, line);
+  parseKeyValue(line, key, value);
+  assert(key == "ssd_num");
+  ssd_num = std::stoi(value);
+  if (malloc_choose == "esg") {assert(ssd_num > 0);}
 
   // 读取file_path
   while (std::getline(configFile, line)) {
@@ -133,7 +141,8 @@ static cudaError_t my_allocator(void** p, size_t size) {
     // return C10_CUDA_ERROR_HANDLED(iter->second->malloc(p, size));
   }
   // 需要new一个对象
-  ma_alloc_map[device] = new PytorchDragon::DragonAllocator(file_paths[device]);
+  std::string device_id = std::to_string(device);
+  ma_alloc_map[device] = new PytorchDragon::DragonAllocator(file_paths[device % ssd_num], device_id);
   auto res = C10_CUDA_ERROR_HANDLED(ma_alloc_map[device]->malloc(p, size));
   return res;
 
